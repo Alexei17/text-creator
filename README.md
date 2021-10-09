@@ -2,7 +2,7 @@
 
 # Установка
 ```
-git pull ...
+git pull https://github.com/Alexei17/text-creator.git
 ```
 
 Используются две дополнительные библиотеки: nltk и pymorphy2. Установка:
