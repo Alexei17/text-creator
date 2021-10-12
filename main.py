@@ -30,12 +30,12 @@ else:
 
 
 # PRE LOADING SECTION
-with open('file.txt') as f:
+with open('file.txt', encoding='utf8') as f:
     original = f.read().split('\n')
 
 
 # if needToReplace:
-with open('filetoreplacewith.txt') as f:
+with open('filetoreplacewith.txt', encoding='utf8') as f:
     replacement_raw = f.read()
     replacement = replacement_raw.split('\n')
     replacement_tokens = word_tokenize(replacement_raw)
