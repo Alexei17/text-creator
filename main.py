@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import random
-from pymystem3 import Mystem #будем использовать mystem для деления на леммы
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 import pymorphy2
@@ -54,17 +53,7 @@ def debugLog(text): #небольшой декоратор, если дебаг 
     if debugMode:
         print(text)
 
-def lemmatize(textList):
-    newTextList = []
-    for sentence in textList:
-        m = Mystem()
-        lemmas = m.lemmatize(sentence) # возращает список из лемм из токенов
 
-        filtered_text = [word.strip() for word in lemmas] 
-        #strip уберет лишние пробелы перед или после леммы
-        newTextList.append(filtered_text)
-
-    return newTextList
 
 def analyzeNumber(original, toRep): #возращает слово если успешно, False если не получилось
     if ('Sgtm' in toRep.tag or 'Pltm' in toRep.tag): 
@@ -282,19 +271,22 @@ for sentence in original:
             
             else:
                 newWord = morph.parse(word)[0] #стоп-слово или не является словом, оставим как есть
-                prevWord, newWord, didChange = endCheck(prevWord, newWord)
+                prevWordT, newWordT, didChange = endCheck(prevWord, newWord)
                 if didChange:
-                    out[-1] = prevWord.word #меняем предыдущое слово в связи с проверкой
+                    if prevWordT != prevWord: #чтобы не менять лишний раз правильные слова
+                        out[-1] = prevWord.word #меняем предыдущое слово в связи с проверкой
+
                             
                 out.append(newWord.word)
                 prevWord = newWord
             
         else:
-            newWord = morph.parse(word)[0] #не заменяем, осталвяем слово как есть
-            prevWord, newWord, didChange = endCheck(prevWord, newWord)
+            newWord = morph.parse(word)[0] #стоп-слово или не является словом, оставим как есть
+            prevWordT, newWordT, didChange = endCheck(prevWord, newWord)
             if didChange:
-                out[-1] = prevWord.word #меняем предыдущое слово в связи с проверкой
-                            
+                if prevWordT != prevWord: #чтобы не менять лишний раз правильные слова
+                    out[-1] = prevWord.word #меняем предыдущое слово в связи с проверкой
+                
             out.append(newWord.word)
             prevWord = newWord
             
