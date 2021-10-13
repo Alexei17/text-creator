@@ -5,6 +5,7 @@ from nltk.tokenize import word_tokenize
 import pymorphy2
 from nltk.tokenize.treebank import TreebankWordDetokenizer
 # CONSTANT DECLARATION SECTION
+debugMode = False
 manual_entry = False #при False будет давать опцию пользователю вводить параметры
 stopwords = set(stopwords.words('russian')) #стоп слова на русском
 morph = pymorphy2.MorphAnalyzer()
@@ -16,16 +17,32 @@ tryReplaceTimes = 100 #попытки преобразования слова
 if manual_entry:
     randomCoefficient = 0.5 #шанс замены какого-либо слова из оригинала
     # needToReplace = True #при true будет заменять из заданного файла, при false из русского словаря - пока что не поддерживается
-    debugMode = True
 
 else:
-    inp = int(input("Заменить примерно каждое ___ слово "))
-    randomCoefficient = 1/inp
-    inp = int(input('Debug mode? (0/1)'))
+    inp = int(input("""Выберите частоту замены слов...
+1. почти каждое слово
+2. часто
+3. средне
+4. нечасто
+5. почти не заменять
+"""))
     if inp == 1:
-        debugMode = True
-    else:
-        debugMode = False
+        randomCoefficient = 1/2
+    elif inp == 2:
+        randomCoefficient = 1/3
+    elif inp == 3:
+        randomCoefficient = 1/5
+    elif inp == 4:
+        randomCoefficient = 1/6
+    elif inp == 5:
+        randomCoefficient = 1/8
+
+    
+    # inp = int(input('Debug mode? (0/1)'))
+    # if inp == 1:
+        # debugMode = True
+    # else:
+        # debugMode = False
 # INPUT SECTION END
 
 
@@ -45,9 +62,12 @@ with open('filetoreplacewith.txt', encoding='utf8') as f:
 # PRE LOADING SECTION END
 def isALegalWord(w): #небольшой метод для проверки того, является ли текст вообще словом и если да, то нету ли его в стоп словах. Предотвращает чтобы '.' и тому подобные считались за слово.
     if not (w.lower() in stopwords) and w.isalpha():
-        return True
+        if w.isupper():
+            return True, 'upper'
+        else:    
+            return True, 'basic'
     else:
-        return False
+        return False, None
 
 def debugLog(text): #небольшой декоратор, если дебаг режим включен распечатает
     if debugMode:
@@ -171,49 +191,63 @@ def tryToReplace(original, toRep): #возращает слово если ус�
         return original #с наречиями не работаем, с ними куча каши получается, извините :P
 
     #разбор части речи, если они не совпадают то смысла рассматривать такое слово скорее всего нету
-    if (original.tag.POS != toRep.tag.POS):
-        debugLog(f'попробовал заменить на {toRep.word}: часть речи не совпадает')
+    try:
+        if (original.tag.POS != toRep.tag.POS):
+            debugLog(f'попробовал заменить на {toRep.word}: часть речи не совпадает')
+            return False
+    except AttributeError:
         return False
 
     
     if (original.tag.POS == 'VERB'): #для глагола будет отдельный разбор
         # разбор наклонения
-        if (original.tag.mood != None and (original.tag.mood != toRep.tag.mood)):
-            moodAnalyzer = analyzeMood(original, toRep)
-            if moodAnalyzer == False:
-                debugLog(f'попробовал поменять наклонение со словом {toRep.word}: не получилось')
-                return False
-            toRep = moodAnalyzer
-        
-        if (original.tag.aspect != None and (original.tag.aspect != toRep.tag.aspect)):
-            analyzeAspect = analyzeMood(original, toRep)
-            if analyzeAspect == False:
-                debugLog(f'попробовал поменять вид (совершенный/несовершенный) со словом {toRep.word}: не получилось')
-                return False
-            toRep = analyzeAspect
-        
-        if (original.tag.tense != None):
-            tenseAn = analyzeTense(original, toRep)
-            if tenseAn == False:
-                debugLog(f'попробовал поменять время со словом {toRep.word}: не получилось')
-                return False
-            toRep = tenseAn
-  
-    #разбираем число, если не совпадают пробуем преобразовать
-    if (original.tag.number != toRep.tag.number):
-        numAnalyzer = analyzeNumber(original, toRep)
-        if numAnalyzer == False:
-            debugLog(f'попробовал поменять число со словом {toRep.word}: не получилось')
+        try:
+            if (original.tag.mood != None and (original.tag.mood != toRep.tag.mood)):
+                moodAnalyzer = analyzeMood(original, toRep)
+                if moodAnalyzer == False:
+                    debugLog(f'попробовал поменять наклонение со словом {toRep.word}: не получилось')
+                    return False
+                toRep = moodAnalyzer
+            
+            if (original.tag.aspect != None and (original.tag.aspect != toRep.tag.aspect)):
+                analyzeAspect = analyzeMood(original, toRep)
+                if analyzeAspect == False:
+                    debugLog(f'попробовал поменять вид (совершенный/несовершенный) со словом {toRep.word}: не получилось')
+                    return False
+                toRep = analyzeAspect
+            
+            if (original.tag.tense != None):
+                tenseAn = analyzeTense(original, toRep)
+                if tenseAn == False:
+                    debugLog(f'попробовал поменять время со словом {toRep.word}: не получилось')
+                    return False
+                toRep = tenseAn
+        except AttributeError:
             return False
-        toRep = numAnalyzer
+
+    
+    #разбираем число, если не совпадают пробуем преобразовать
+    try:
+        if (original.tag.number != toRep.tag.number):
+            numAnalyzer = analyzeNumber(original, toRep)
+            if numAnalyzer == False:
+                debugLog(f'попробовал поменять число со словом {toRep.word}: не получилось')
+                return False
+            toRep = numAnalyzer
+    except AttributeError:
+        return False
+
         
     #разбор падежа
-    if (original.tag.case != toRep.tag.case):
-        caseAnalyzer = analyzeCase(original, toRep)
-        if caseAnalyzer == False:
-            debugLog(f'попробовал поменять падеж со словом {toRep.word}: не получилось')
-            return False
-        toRep = caseAnalyzer
+    try:
+        if (original.tag.case != toRep.tag.case):
+            caseAnalyzer = analyzeCase(original, toRep)
+            if caseAnalyzer == False:
+                debugLog(f'попробовал поменять падеж со словом {toRep.word}: не получилось')
+                return False
+            toRep = caseAnalyzer
+    except AttributeError:
+        return False
 
     
     return toRep
@@ -222,7 +256,9 @@ def tryToReplace(original, toRep): #возращает слово если ус�
 def endCheck(prevWord, newWord):
     #метод для проверки связи предыдущего и текущего слова. возвращает старое, новое слово и bool который говорит, были ли изминения
     didChange = False
+    prevWordIsCapitalized = False
     if prevWord != None:
+        prevWordIsCapitalized = out[-1].isupper()
         prevWord, newWord, check = checkComboForGenderAndNumber(prevWord, newWord)
         if check == True:
             didChange = True
@@ -234,28 +270,36 @@ def endCheck(prevWord, newWord):
                 didChange = True
 
 
-    return prevWord, newWord, didChange
+
+    return prevWord, newWord, didChange, prevWordIsCapitalized
 
 # PROGRAM MAIN
 out = [] #вывод
 for sentence in original:
     words = word_tokenize(sentence) #токенизируем
     prevWord = None
+    i = 0
     for word in words:
         tries = 0
         if random.random() <= randomCoefficient: #будем заменять?
-            if isALegalWord(word):
+            isLegal, typelegal = isALegalWord(word)
+            if isLegal:
                 while tries < tryReplaceTimes:
                     randomWord = replacement_tokens[random.randint(0, len(replacement_tokens)-1)]
+                    if typelegal == 'upper' and not(randomWord.isupper()): #не имя собственное, хотя хотим заменить на него
+                        continue
+
                     newWord = tryToReplace(word, randomWord)
                     if newWord == False:
                         tries += 1
                         continue
                     else:
                         #закончили: подобрали слово. сделаем последние проверки
-                        prevWord, newWord, didChange = endCheck(prevWord, newWord)
+                        prevWord, newWord, didChange, prevCapit = endCheck(prevWord, newWord)
                         if didChange:
                             out[-1] = prevWord.word #меняем предыдущое слово в связи с проверкой
+                        if prevCapit:
+                            out[-1] = out[-1].capitalize()
 
                         prevWord = newWord
 
@@ -271,10 +315,13 @@ for sentence in original:
             
             else:
                 newWord = morph.parse(word)[0] #стоп-слово или не является словом, оставим как есть
-                prevWordT, newWordT, didChange = endCheck(prevWord, newWord)
+                prevWord, newWord, didChange, prevCapit = endCheck(prevWord, newWord)
                 if didChange:
                     if prevWordT != prevWord: #чтобы не менять лишний раз правильные слова
                         out[-1] = prevWord.word #меняем предыдущое слово в связи с проверкой
+                
+                if prevCapit:
+                    out[-1] = out[-1].capitalize()
 
                             
                 out.append(newWord.word)
@@ -282,15 +329,23 @@ for sentence in original:
             
         else:
             newWord = morph.parse(word)[0] #стоп-слово или не является словом, оставим как есть
-            prevWordT, newWordT, didChange = endCheck(prevWord, newWord)
+            prevWordT, newWord, didChange, prevCapit = endCheck(prevWord, newWord)
             if didChange:
                 if prevWordT != prevWord: #чтобы не менять лишний раз правильные слова
                     out[-1] = prevWord.word #меняем предыдущое слово в связи с проверкой
+
+            if prevCapit:
+                out[-1] = out[-1].capitalize()
                 
             out.append(newWord.word)
             prevWord = newWord
+
+        if i == 0:
+            out[-1] = out[-1].capitalize()
+        i += 1
             
     # конец sentence loop
+
     out.append('\n')
 
 
